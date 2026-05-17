@@ -1,0 +1,490 @@
+//------------------------------------------------- final version --------------------------------------------------------------------------
+
+// f el code hna  ana astkhdmt binary search 3lshan a organiza el movies w akhly el searching ashl ,
+//w dfs 3lshan y search 3la el movie b shakl asr3 
+//w queue ll recent queu ,double linked list ll watchlist 3lshan el adding w el removing ybaa more easier 
+// vector 3lshan a collect el data ll merge sort (3lshan msh byshtghl 8ir 3la vector w array ) 
+// da app ll aflam zy netflix fe data kbera range msln 10 k movie (kan momken nstkhdm file ll data de kulha bs ana 3mlt function sample ll data 3lshan da bs model )
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <queue>
+#include <cctype>
+#include<vector>
+#include <windows.h>
+//#include<windows.h>
+using namespace std;
+
+// ======== Helpers ========
+string normalize(string s) {
+
+	for (auto& c : s) {
+
+		c = tolower(c);
+	}
+	return s;
+}
+
+// ======== USER ========
+
+class usernode {
+public:
+	string username, password;
+	int age;
+	usernode* next;
+	usernode(string u, string p, int a = 0) {
+		username = u; password = p; age = a; next = nullptr;
+	}
+};
+
+class usermanger {
+	usernode* head;
+	string filename = "usersdata.txt";
+public:
+	usermanger() { head = nullptr; loaduser(); }
+	~usermanger() {
+		saveusers();
+		while (head) { usernode* t = head; head = head->next; delete t; }
+	}
+
+	void loaduser() {
+		ifstream file(filename);
+		if (!file.is_open()) return;
+		string line;
+		while (getline(file, line)) {
+			if (line.empty()) continue;
+			stringstream ss(line);
+			string u, p, a;
+			if (!getline(ss, u, ',')) continue;
+			if (!getline(ss, p, ',')) continue;
+			if (!getline(ss, a)) continue;
+			// skip lines that don't have a valid age number
+			bool validAge = !a.empty();
+			for (char c : a) if (!isdigit(c)) { validAge = false; break; }
+			if (!validAge) continue;
+			int age = stoi(a);
+			usernode* n = new usernode(u, p, age);
+			n->next = head; head = n;
+		}
+	}
+
+	void saveusers() {
+		ofstream file(filename);
+		for (usernode* c = head; c; c = c->next)
+			file << c->username << "," << c->password << "," << c->age << endl;
+	}
+
+	void signin(string u, string p, int a) {
+		// username must be unique — password can be repeated across users
+		for (usernode* c = head; c; c = c->next)
+			if (c->username == u) {
+				cout << " Username already exists " << endl;
+				return;
+			}
+		usernode* n = new usernode(u, p, a);
+		n->next = head; head = n;
+		saveusers();
+		cout << "User created successfully !" << endl;
+	}
+
+	usernode* login(string u, string p) {
+		for (usernode* c = head; c; c = c->next)
+			if (c->username == u && c->password == p) {
+				cout << "Login success!" << endl;
+				return c;
+			}
+		cout << " Wrong Username Or Password" << endl;
+		return nullptr;
+	}
+};
+
+// ======== MOVIE ========
+class Movie {
+public:
+	string name, desc, lang;
+	int duration, ageRating;
+	float rating;
+	Movie* left, * right;
+	string genre;
+
+	Movie(string n, string d, int dur, int age, string lan, string gen = "general", double rat = 0.0) {
+		name = n; desc = d; duration = dur; ageRating = age;
+		lang = lan; genre = gen; rating = rat;
+		left = right = nullptr;
+	}
+};
+
+class RecentQueue
+{
+
+private:
+	queue<Movie*> q;
+	int maxSize;
+
+public:
+
+	RecentQueue(int maxR = 5) {
+		maxSize = maxR;
+	}
+
+	void add(Movie* m) {
+		q.push(m);
+		if (q.size() > maxSize) {
+			q.pop();
+		}
+	}
+	void display() {
+		if (q.empty()) {
+			cout << " ❌ No recent movies." << endl;
+			return;
+		}
+		cout << "  🔥 Recently Added Movies:" << endl;
+		queue<Movie*> temp = q;
+		while (!temp.empty()) {
+			cout << temp.front()->name << endl;
+			temp.pop();
+		}
+
+		cout << endl;
+	}
+};
+
+class MovieBST {
+public:
+	Movie* root;
+	MovieBST() { root = nullptr; }
+
+	Movie* insertRec(Movie* node, Movie* m) {
+		if (!node) return m;
+		if (m->name < node->name) node->left = insertRec(node->left, m);
+		else node->right = insertRec(node->right, m);
+		return node;
+	}
+
+	void addMovie(const string& n, const string& d, int dur, int age,
+		const string& lang, const string& gen = "general",
+		double rat = 0.0, RecentQueue* recent = nullptr) {
+		string normalizedLang = normalize(lang);
+		Movie* newMovie = new Movie(n, d, dur, age, normalize(lang), gen, rat);
+		root = insertRec(root, newMovie);
+		if (recent) recent->add(newMovie);
+	}
+
+	Movie* dfsSearch(Movie* node, const string& nameN, vector<string>& visitLog) {
+		if (!node) return nullptr;
+		Movie* leftResult = dfsSearch(node->left, nameN, visitLog);
+		if (leftResult) return leftResult;
+		visitLog.push_back(node->name);
+		if (normalize(node->name) == nameN) return node;
+		return dfsSearch(node->right, nameN, visitLog);
+	}
+
+	Movie* searchByName(const string& name) {
+		vector<string> visitLog;
+		Movie* result = dfsSearch(root, normalize(name), visitLog);
+		for (int i = 0; i < (int)visitLog.size(); i++) {
+			cout << visitLog[i];
+			if (i < (int)visitLog.size() - 1) cout << " -> ";
+		}
+		cout << endl;
+		return result;
+	}
+
+	void collectAll(Movie* node, vector<Movie*>& arr) {
+		if (!node) return;
+		collectAll(node->left, arr);
+		arr.push_back(node);
+		collectAll(node->right, arr);
+	}
+
+	void mergeSort(vector<Movie*>& arr, int left, int right) {
+		if (left >= right) return;
+		int mid = left + (right - left) / 2;
+		mergeSort(arr, left, mid);
+		mergeSort(arr, mid + 1, right);
+		mergeParts(arr, left, mid, right);
+	}
+
+	void mergeParts(vector<Movie*>& arr, int left, int mid, int right) {
+		vector<Movie*> temp;
+		int i = left, j = mid + 1;
+		while (i <= mid && j <= right) {
+			if (arr[i]->rating >= arr[j]->rating) temp.push_back(arr[i++]);
+			else temp.push_back(arr[j++]);
+		}
+		while (i <= mid) temp.push_back(arr[i++]);
+		while (j <= right) temp.push_back(arr[j++]);
+		for (int k = 0; k < (int)temp.size(); k++) arr[left + k] = temp[k];
+	}
+
+	void displayByAgeAndLang(int userAge, string lang) {
+		vector<Movie*> filtered;
+		vector<Movie*> all;
+		collectAll(root, all);
+
+		string langN = normalize(lang);
+		for (Movie* m : all) {
+			if (m->ageRating <= userAge && normalize(m->lang) == langN)
+				filtered.push_back(m);
+		}
+
+		if (filtered.empty()) { cout << "No movies found for your criteria  " << endl; return; }
+
+		// Sort filtered results by movie rating using Merge Sort
+		mergeSort(filtered, 0, (int)filtered.size() - 1);
+
+		cout << "======= Movies (sorted by rating: highest first) =======" << endl;
+		for (Movie* m : filtered) {
+			cout << "🎬 Name        : " << m->name << endl;
+			cout << "⭐ Rating      : " << m->rating << " / 5" << endl;
+			cout << "⏳ Duration    : " << m->duration << " minutes" << endl;
+			cout << "👨 Age Rating  : +" << m->ageRating << endl;
+			cout << "🎭 Genre       : " << m->genre << endl;
+			cout << "📝 Description : " << m->desc << endl;
+			cout << "🌍 Language    : " << m->lang << endl;
+			cout << "--------------------------------------------" << endl;
+			cout << endl;
+		}
+	}
+
+	void displayAllSortedByRating() {
+		vector<Movie*> all;
+		collectAll(root, all);
+		if (all.empty()) { cout << "No movies available." << endl; return; }
+
+		mergeSort(all, 0, (int)all.size() - 1);
+
+		cout << "====== All Movies Sorted by Rating  ======" << endl;
+		for (Movie* m : all) {
+			cout << m->rating << "/5 | " << m->name << " (" << m->lang << ", " << m->genre << ")" << endl;
+		}
+	}
+};
+
+// ======== WATCHLIST ========
+class WatchNode {
+public:
+	string name;
+	WatchNode* next, * prev;
+	WatchNode(string n) { name = n; next = prev = nullptr; }
+};
+
+class Watchlist {
+	WatchNode* head, * tail;
+public:
+	Watchlist() { head = tail = nullptr; }
+
+	void add(string n) {
+		WatchNode* x = new WatchNode(n);
+		if (!head)head = tail = x;
+		else {
+			tail->next = x;
+			x->prev = tail;
+			tail = x;
+		}
+		cout << "Added to ur Watchlist <3 " << endl;
+	}
+	void remove(string movieName) {
+		WatchNode* cur = head;
+		while (cur) {
+			if (normalize(cur->name) == normalize(movieName)) {
+				if (cur->prev) cur->prev->next = cur->next;
+				else head = cur->next;
+				if (cur->next) cur->next->prev = cur->prev;
+				else tail = cur->prev;
+				delete cur;
+				cout << " --> " << movieName << " removed from watchlist !" << endl;
+				return;
+			}
+			cur = cur->next;
+		}
+		cout << "Movie not found in watchlist." << endl;
+	}
+
+	void display() {
+
+		if (!head) {
+			cout << " Watchlist is empty  !!" << endl;
+			return;
+		}
+		WatchNode* c = head;
+		cout << "Your Watchlist    :     " << endl;
+		while (c) {
+			cout << c->name;
+			if (c->next)
+				cout << " -> ";
+			c = c->next;
+		}
+		cout << " -> END " << endl;
+	}
+};
+
+void initSampleData(MovieBST& movies, RecentQueue& recent) {
+	// lang , age rating , rating ,genre 
+	movies.addMovie("Coco", "A boy enters the spirit world.", 105, 3, "english", "animation", 4.8, &recent);
+	movies.addMovie("Frozen", "Anna saves Elsa.", 95, 3, "english", "animation", 4.5, &recent);
+	movies.addMovie("Bee Movie", "A bee seeking justice in the human world.", 120, 3, "english", "comedy", 3.9, &recent);
+	movies.addMovie("Ladybug", "Heart warming moments for children.", 124, 3, "english", "animation", 4.1, &recent);
+	movies.addMovie("Back in Action", "Action and comedy for teens.", 145, 13, "english", "action", 3.7, &recent);
+	movies.addMovie("Elharifa", "Football teamwork story.", 117, 13, "arabic", "drama", 4.3, &recent);
+	movies.addMovie("Harry Botter", "Magical story.", 147, 13, "english", "fantasy", 4.6, &recent);
+	movies.addMovie("The Dark Knight", "Batman vs Joker.", 120, 13, "english", "action", 4.9, &recent);
+	movies.addMovie("Siko Siko", "Two men struggle to find their money.", 119, 13, "arabic", "comedy", 4.2, &recent);
+	movies.addMovie("Face to Face", "Emotional human story.", 134, 13, "arabic", "drama", 4.0, &recent);
+	movies.addMovie("IT", "Classic clown horror story.", 120, 18, "english", "horror", 4.4, &recent);
+	movies.addMovie("The Nun", "A scary demonic movie.", 110, 18, "english", "horror", 3.8, &recent);
+	movies.addMovie("Escape Room", "Suspense story.", 127, 18, "english", "thriller", 4.1, &recent);
+	movies.addMovie("Asrar El Qahra", "Horror story in old Cairo.", 114, 18, "arabic", "horror", 4.5, &recent);
+	movies.addMovie("Elfel El Azraa", "Psychological horror.", 123, 18, "arabic", "horror", 4.3, &recent);
+	movies.addMovie("Moana", "A girl sails across the ocean to save her island.", 107, 3, "english", "animation", 4.7, &recent);
+	movies.addMovie("Toy Story", "Toys come to life when humans are away.", 100, 3, "english", "animation", 4.6, &recent);
+	movies.addMovie("Spider Man Homecoming", "Peter Parker balances school and hero life.", 133, 13, "english", "action", 4.5, &recent);
+	movies.addMovie("Fast and Furious", "Street racers face dangerous missions.", 140, 13, "english", "action", 4.1, &recent);
+	movies.addMovie("Welad Rizk", "Brothers get involved in risky crimes.", 121, 13, "arabic", "action", 4.4, &recent);
+	movies.addMovie("X Large", "A comedy about changing life habits.", 130, 13, "arabic", "comedy", 4.0, &recent);
+	movies.addMovie("Saw", "A deadly survival horror game begins.", 118, 18, "english", "horror", 4.2, &recent);
+	movies.addMovie("Annabelle", "A haunted doll spreads terror everywhere.", 106, 18, "english", "horror", 3.9, &recent);
+	movies.addMovie("Kira Wel Gen", "A psychological thriller full of mystery.", 125, 18, "arabic", "thriller", 4.3, &recent);
+	movies.addMovie("122", "People struggle to survive inside a hospital.", 95, 18, "arabic", "horror", 4.1, &recent);
+}
+
+// ======== MENUS ========
+bool guestMenu(usermanger& u, usernode*& cur) {
+	cout << "======================================================" << endl;
+	cout << "================= 🎬 NightFlix 🎬 ===================" << endl;
+	cout << "======================================================" << endl;
+	cout << " 1]   Log In  🔐" << endl;
+	cout << " 2]   Create Account  📝" << endl;
+	cout << " 3]   Exit Application  🚪" << endl;
+	cout << "  " << endl;
+	cout << "👉 Enter Your Choice: ";
+
+
+	int c; cin >> c; cin.ignore();
+	if (c == 3) {
+		cout << " 👋 Goodbye!";
+		return false;
+	}
+	if (c == 1) {
+		string x, y;
+		cout << "👤 UserName : ";
+		getline(cin, x);
+		cout << "🔒 Password  : ";
+		getline(cin, y);
+		cur = u.login(x, y);
+		cout << "  " << endl;
+	}
+	if (c == 2) {
+		string x, y;
+		int a;
+		cout << " 👤 Enter UserName : ";
+		getline(cin, x);
+		cout << " 🔒 Enter Password  :";
+		getline(cin, y);
+		cout << " 🎂 Enter ur Age : ";
+		cin >> a;
+		cin.ignore();
+		u.signin(x, y, a);
+	}
+	return true;
+}
+
+void userMenu(usernode*& currentUser, MovieBST& movies, Watchlist& watch, RecentQueue& recent) {
+	cout << "🌟  Welcome  " << currentUser->username << endl;
+	cout << " 1]  View All Movies 🎥" << endl;
+	cout << " 2] Search Movie by name 🔍 : " << endl;
+	cout << " 3] All movies sorted by rating ⭐ :" << endl;
+	cout << " 4]  My Watchlist 🍿" << endl;
+	cout << " 5] Remove from my watchlist 🗑️: " << endl;
+	cout << " 6]  Recently Added 🔥" << endl;
+	cout << " 7]  Logout 🚪" << endl;
+	cout << "------------------------------------------" << endl;
+	cout << "👉 Enter Your Choice: ";
+
+	int c;
+	cin >> c;
+	cin.ignore();
+	if (c == 1) {
+		string lang;
+
+		cout << "🌍 Enter Language: ";
+		getline(cin, lang);
+
+		movies.displayByAgeAndLang(currentUser->age, lang);
+		cout << "Add a movie to your watchlist ⏭️ (Press Enter to skip): ";
+		string movieName;
+		getline(cin, movieName);
+		if (!movieName.empty()) {
+			Movie* f = movies.searchByName(movieName);
+			if (f) {
+				if (f->ageRating <= currentUser->age) watch.add(f->name);
+				else cout << " !! Age restriction: you need to be " << f->ageRating << "+ to add this movie." << endl;
+			}
+			else cout << "Movie not found ❌ " << endl;
+		}
+	}
+
+	else if (c == 2) {
+		string m;
+		cout << "Enter movie name to search: "; getline(cin, m);
+		Movie* f = movies.searchByName(m);
+		if (f) {
+			cout << "🎬 Name        : " << f->name << endl;
+			cout << "⏳ Duration    : " << f->duration << " min" << endl;
+			cout << "🔞 Age Rating  : +" << f->ageRating << endl;
+			cout << "🌍 Language    : " << f->lang << endl;
+			cout << "🎭 Genre       : " << f->genre << endl;
+		}
+		else {
+			cout << "❌ Movie not found." << endl;
+		}
+	}
+
+	else if (c == 3) {
+		movies.displayAllSortedByRating();
+	}
+	else if (c == 4) {
+		watch.display();
+	}
+	else if (c == 5) {
+		string m;
+
+		cout << "Movie name to remove 🗑️ : ";
+		getline(cin, m);
+
+		watch.remove(m);
+	}
+	else if (c == 6) {
+		recent.display();
+	}
+	else if (c == 7) {
+		currentUser = nullptr;
+		cout << "Logged out 🚪" << endl;
+	}
+}
+
+void mainMenu(usermanger& users, MovieBST& movies, Watchlist& watch, RecentQueue& recent) {
+	usernode* currentUser = nullptr;
+	bool running = true;
+	while (running) {
+		if (!currentUser) running = guestMenu(users, currentUser);
+		else userMenu(currentUser, movies, watch, recent);
+	}
+}
+
+
+
+// ======== MAIN ========
+int main() {
+	SetConsoleOutputCP(CP_UTF8);
+	SetConsoleCP(CP_UTF8);
+	usermanger u;
+	MovieBST m;
+	Watchlist w;
+	RecentQueue r;
+	initSampleData(m, r);
+	mainMenu(u, m, w, r);
+
+}
